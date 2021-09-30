@@ -45,6 +45,7 @@ struct SysCmd {
 enum class Type : uint8_t {
     AMK_Tester,
     AdcSwitch = 100,
+    UPN_V2 = 101,
 };
 
 class Device;
@@ -78,7 +79,8 @@ public:
     /// \param value
     /// \return
     template <typename... Ts>
-    [[nodiscard]] static QByteArray parcel(uint8_t cmd, Ts&&... value) {
+    [[nodiscard]] static QByteArray parcel(uint8_t cmd, Ts&&... value)
+    {
         constexpr size_t size(sizeof(Ts)...);
         QByteArray data(MIN_LEN + size, 0);
         Parcel* d = reinterpret_cast<Parcel*>(data.data());
@@ -86,8 +88,9 @@ public:
             .start = TX,
             .len = static_cast<uint8_t>(data.size()),
             .cmd = cmd,
-            .data = {0}};
-        size_t offset{};
+            .data = { 0 }
+        };
+        size_t offset {};
         ((*reinterpret_cast<std::decay_t<Ts>*>(d->data + offset) = value, offset + sizeof(Ts)), ...);
         d->data[size] = calcCrc(data); //crc
         return data;
@@ -99,7 +102,8 @@ public:
     /// \return
     ///
     template <typename T>
-    [[nodiscard]] T value(const QByteArray& data) const {
+    [[nodiscard]] T value(const QByteArray& data) const
+    {
         const Parcel* d = reinterpret_cast<const Parcel*>(data.constData());
         const T val(*reinterpret_cast<const T*>(d->data));
         return val;
@@ -111,7 +115,8 @@ public:
     /// \return
     ///
     template <typename T>
-    [[nodiscard]] T* pValue(const QByteArray& data) const {
+    [[nodiscard]] T* pValue(const QByteArray& data) const
+    {
         const Parcel* d = reinterpret_cast<const Parcel*>(data.constData());
         return reinterpret_cast<const T*>(d->data);
     }
@@ -142,13 +147,14 @@ protected:
     void ioRxText(const QByteArray& data);
 
     template <auto Cmd, class Derived>
-    void registerCallback(void (Derived::*Func)(const QByteArray&)) requires std::is_base_of_v<Device, Derived> {
+    void registerCallback(void (Derived::*Func)(const QByteArray&)) requires std::is_base_of_v<Device, Derived>
+    {
         static_assert(SysCmd::Ping != Cmd, "SysCmd::Ping");
         static_assert(SysCmd::Reserve1 != Cmd, "SysCmd::Reserve1");
         static_assert(SysCmd::Reserve2 != Cmd, "SysCmd::Reserve2");
         static_assert(SysCmd::BufferOverflow != Cmd, "SysCmd::BufferOverflow");
         static_assert(SysCmd::CrcError != Cmd, "SysCmd::CrcError");
-//        static_assert(SysCmd::Text != Cmd, "SysCmd::Text");
+        //        static_assert(SysCmd::Text != Cmd, "SysCmd::Text");
         static_assert(SysCmd::WrongCommand != Cmd, "SysCmd::WrongCommand == Cmd");
         callBacks[Cmd] = reinterpret_cast<CallBack>(Func);
     }
@@ -162,7 +168,7 @@ private:
     std::vector<CallBack> callBacks;
 
     // POLYNOMIAL =0x1D // x^8 + x^4 + x^3 + x^2 + 1
-    static constexpr uint8_t crcArray[0x100]{
+    static constexpr uint8_t crcArray[0x100] {
         0x00, 0x1D, 0x3A, 0x27, 0x74, 0x69, 0x4E, 0x53, 0xE8, 0xF5, 0xD2, 0xCF, 0x9C, 0x81, 0xA6, 0xBB,
         0xCD, 0xD0, 0xF7, 0xEA, 0xB9, 0xA4, 0x83, 0x9E, 0x25, 0x38, 0x1F, 0x02, 0x51, 0x4C, 0x6B, 0x76,
         0x87, 0x9A, 0xBD, 0xA0, 0xF3, 0xEE, 0xC9, 0xD4, 0x6F, 0x72, 0x55, 0x48, 0x1B, 0x06, 0x21, 0x3C,
@@ -178,7 +184,8 @@ private:
         0x35, 0x28, 0x0F, 0x12, 0x41, 0x5C, 0x7B, 0x66, 0xDD, 0xC0, 0xE7, 0xFA, 0xA9, 0xB4, 0x93, 0x8E,
         0xF8, 0xE5, 0xC2, 0xDF, 0x8C, 0x91, 0xB6, 0xAB, 0x10, 0x0D, 0x2A, 0x37, 0x64, 0x79, 0x5E, 0x43,
         0xB2, 0xAF, 0x88, 0x95, 0xC6, 0xDB, 0xFC, 0xE1, 0x5A, 0x47, 0x60, 0x7D, 0x2E, 0x33, 0x14, 0x09,
-        0x7F, 0x62, 0x45, 0x58, 0x0B, 0x16, 0x31, 0x2C, 0x97, 0x8A, 0xAD, 0xB0, 0xE3, 0xFE, 0xD9, 0xC4};
+        0x7F, 0x62, 0x45, 0x58, 0x0B, 0x16, 0x31, 0x2C, 0x97, 0x8A, 0xAD, 0xB0, 0xE3, 0xFE, 0xD9, 0xC4
+    };
 };
 
 }
