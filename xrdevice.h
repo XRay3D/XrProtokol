@@ -37,6 +37,7 @@ enum class Type : uint8_t {
     AmkTester,
     AdcSwitch = 100,
     UPN_V2 = 101,
+    LP2951_Tester,
 };
 
 class Device;
