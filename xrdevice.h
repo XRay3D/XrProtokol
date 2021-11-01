@@ -33,7 +33,8 @@ struct SysCmd {
 };
 
 enum class Type : uint8_t {
-    AMK_Tester,
+    KeyBoardTester,
+    AmkTester,
     AdcSwitch = 100,
     UPN_V2 = 101,
 };
