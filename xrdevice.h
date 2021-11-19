@@ -17,7 +17,7 @@ enum {
     RX = 0x55AA,
     MIN_LEN = 5,
     MIN_LEN_ADDR = 6,
-    DbgMsg = 0,
+    DbgMsg = 1,
 };
 
 struct SysCmd {
@@ -54,19 +54,16 @@ struct Parcel {
     uint8_t cmd {};
     uint8_t data[0x100 - MIN_LEN] { 0 };
 
-    Parcel()
-    {
+    Parcel() {
     }
 
-    Parcel(const QByteArray& ba)
-    {
+    Parcel(const QByteArray& ba) {
         *this = *reinterpret_cast<const Parcel*>(ba.data());
     }
 
     template <class... Ts>
     Parcel(uint8_t cmd, Ts... value)
-        : cmd(cmd)
-    {
+        : cmd(cmd) {
         constexpr uint8_t size_ { (sizeof(Ts) + ... + 0) };
         start = TX,
         size = static_cast<uint8_t>(size_ + MIN_LEN);
@@ -111,7 +108,23 @@ public:
     [[nodiscard]] static bool checkParcel(const QByteArray& data);
     [[nodiscard]] static bool checkParcel(const uint8_t* data);
 
-    //////////////////////////////////////////////////
+    bool write(const XrProtokol::Parcel& data, int timeout = 1000) {
+        if (!isConnected())
+            return false;
+        semaphore_.acquire(semaphore_.available());
+        emit writeParcel(data);
+        return wait(timeout);
+    }
+    template <class T>
+    bool read(const XrProtokol::Parcel& data, T& val, int timeout = 1000) {
+        if (!isConnected())
+            return false;
+        semaphore_.acquire(semaphore_.available());
+        emit writeParcel(data);
+        bool ret = wait(timeout);
+        lastParcel.toValue(val);
+        return ret;
+    }
 
     Port* port() const;
 
@@ -125,8 +138,7 @@ protected:
     void ioRxText(const Parcel& data);
 
     template <auto Cmd, class Derived>
-    void registerCallback(void (Derived::*Func)(const Parcel&)) requires std::is_base_of_v<Device, Derived>
-    {
+    void registerCallback(void (Derived::*Func)(const Parcel&)) requires std::is_base_of_v<Device, Derived> {
         static_assert(SysCmd::Ping != Cmd, "SysCmd::Ping");
         static_assert(SysCmd::Reserve1 != Cmd, "SysCmd::Reserve1");
         static_assert(SysCmd::Reserve2 != Cmd, "SysCmd::Reserve2");
@@ -136,15 +148,15 @@ protected:
         static_assert(SysCmd::WrongCommand != Cmd, "SysCmd::WrongCommand");
         callBacks[Cmd] = reinterpret_cast<CallBack>(Func);
     }
-
+    bool wait(int timeout = 1000) { return semaphore_.tryAcquire(1, timeout); }
     QSemaphore semaphore_;
     Parcel lastParcel;
+    Parcel lastParcelSys;
     QMutex mutex;
 
 private:
     Port* port_;
     QThread portThread;
-
     std::array<CallBack, 0x100> callBacks;
 };
 
