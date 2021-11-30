@@ -35,6 +35,7 @@ struct SysCmd {
 enum class Type : uint8_t {
     KeyBoardTester,
     AmkTester,
+    ElektroSila,
     AdcSwitch = 100,
     UPN_V2 = 101,
     LP2951_Tester,
@@ -54,16 +55,19 @@ struct Parcel {
     uint8_t cmd {};
     uint8_t data[0x100 - MIN_LEN] { 0 };
 
-    Parcel() {
+    Parcel()
+    {
     }
 
-    Parcel(const QByteArray& ba) {
+    Parcel(const QByteArray& ba)
+    {
         *this = *reinterpret_cast<const Parcel*>(ba.data());
     }
 
     template <class... Ts>
     Parcel(uint8_t cmd, Ts... value)
-        : cmd(cmd) {
+        : cmd(cmd)
+    {
         constexpr uint8_t size_ { (sizeof(Ts) + ... + 0) };
         start = TX,
         size = static_cast<uint8_t>(size_ + MIN_LEN);
@@ -108,7 +112,8 @@ public:
     [[nodiscard]] static bool checkParcel(const QByteArray& data);
     [[nodiscard]] static bool checkParcel(const uint8_t* data);
 
-    bool write(const XrProtokol::Parcel& data, int timeout = 1000) {
+    bool write(const XrProtokol::Parcel& data, int timeout = 1000)
+    {
         if (!isConnected())
             return false;
         semaphore_.acquire(semaphore_.available());
@@ -116,7 +121,8 @@ public:
         return wait(timeout);
     }
     template <class T>
-    bool read(const XrProtokol::Parcel& data, T& val, int timeout = 1000) {
+    bool read(const XrProtokol::Parcel& data, T& val, int timeout = 1000)
+    {
         if (!isConnected())
             return false;
         semaphore_.acquire(semaphore_.available());
@@ -138,7 +144,8 @@ protected:
     void ioRxText(const Parcel& data);
 
     template <auto Cmd, class Derived>
-    void registerCallback(void (Derived::*Func)(const Parcel&)) requires std::is_base_of_v<Device, Derived> {
+    void registerCallback(void (Derived::*Func)(const Parcel&)) requires std::is_base_of_v<Device, Derived>
+    {
         static_assert(SysCmd::Ping != Cmd, "SysCmd::Ping");
         static_assert(SysCmd::Reserve1 != Cmd, "SysCmd::Reserve1");
         static_assert(SysCmd::Reserve2 != Cmd, "SysCmd::Reserve2");
