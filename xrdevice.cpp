@@ -26,7 +26,8 @@ static constexpr uint8_t crcArray[0x100] {
 
 Device::Device(QObject* parent)
     : QObject(parent)
-    , port_ { new Port(this) } {
+    , port_ { new Port(this) }
+{
     for (auto&& callBack : callBacks)
         callBack = &Device::ioRxDefault;
 
@@ -40,12 +41,14 @@ Device::Device(QObject* parent)
     portThread.start(QThread::NormalPriority);
 }
 
-Device::~Device() {
+Device::~Device()
+{
     portThread.quit();
     portThread.wait();
 }
 
-bool Device::ping(const QString& portName, int baud, [[maybe_unused]] int addr) {
+bool Device::ping(const QString& portName, int baud, [[maybe_unused]] int addr)
+{
     QMutexLocker locker(&mutex);
     if constexpr (DbgMsg)
         qDebug() << __FUNCTION__ << portName;
@@ -70,7 +73,7 @@ bool Device::ping(const QString& portName, int baud, [[maybe_unused]] int addr) 
             qDebug() << port_->errorString();
             break;
         }
-        emit writeParcel({ SysCmd::Ping });
+        emit writeParcel({ SysCmd::Ping, {} });
         if (!semaphore_.tryAcquire(1, 100) || type() != lastParcelSys.toValue<Type>()) {
             if (port_->isOpen()) {
                 emit close_();
@@ -83,18 +86,22 @@ bool Device::ping(const QString& portName, int baud, [[maybe_unused]] int addr) 
     return connected_;
 }
 
-void Device::close() {
+void Device::close()
+{
     emit close_();
     semaphore_.tryAcquire(1, 1000);
 }
 
-void Device::reset() {
+void Device::reset()
+{
     lastParcelSys = {};
+    lastParcel = {};
     semaphore_.acquire(semaphore_.available());
     CommonInterfaces::reset();
 }
 
-bool Device::checkParcel(const QByteArray& data) {
+bool Device::checkParcel(const QByteArray& data)
+{
     const Parcel* const d = reinterpret_cast<const Parcel*>(data.constData());
     return data.size() >= MIN_LEN
         && d->start == RX
@@ -102,14 +109,16 @@ bool Device::checkParcel(const QByteArray& data) {
         && d->data[d->size - MIN_LEN] == calcCrc(data);
 }
 
-bool Device::checkParcel(const uint8_t* data) {
+bool Device::checkParcel(const uint8_t* data)
+{
     const Parcel* const d = reinterpret_cast<const Parcel*>(data);
     return d->start == RX
         && d->size >= MIN_LEN
         && d->data[d->size - MIN_LEN] == calcCrc(data, d->size);
 }
 
-uint8_t calcCrc(const QByteArray& data) {
+uint8_t calcCrc(const QByteArray& data)
+{
     uint8_t crc8 = 0;
     for (char byte : std::span(data.data(), data.size() - 1)) {
         crc8 ^= byte;
@@ -118,7 +127,8 @@ uint8_t calcCrc(const QByteArray& data) {
     return crc8;
 }
 
-uint8_t calcCrc(const uint8_t* data, uint8_t len) {
+uint8_t calcCrc(const uint8_t* data, uint8_t len)
+{
     uint8_t crc8 = 0;
     --len;
     for (int i = 0; i < len; ++i) {
@@ -130,37 +140,45 @@ uint8_t calcCrc(const uint8_t* data, uint8_t len) {
 
 Port* Device::port() const { return port_; }
 
-void Device::ioRxDefault(const Parcel& data) {
+Port* Device::port() { return port_; }
+
+void Device::ioRxDefault(const Parcel& data)
+{
     lastParcel = data;
     if constexpr (DbgMsg)
         qDebug() << __FUNCTION__ << data.toHex();
 }
 
-void Device::ioRxPing(const Parcel& data) {
+void Device::ioRxPing(const Parcel& data)
+{
     lastParcelSys = data;
     if constexpr (DbgMsg)
         qDebug() << __FUNCTION__ << data.toHex();
 }
 
-void Device::ioRxBufferOverflow(const Parcel& data) {
+void Device::ioRxBufferOverflow(const Parcel& data)
+{
     lastParcelSys = data;
     if constexpr (DbgMsg)
         qDebug() << __FUNCTION__ << data.toHex();
 }
 
-void Device::ioRxWrongCommand(const Parcel& data) {
+void Device::ioRxWrongCommand(const Parcel& data)
+{
     lastParcelSys = data;
     if constexpr (DbgMsg)
         qDebug() << __FUNCTION__ << data.toHex();
 }
 
-void Device::ioRxCrcError(const Parcel& data) {
+void Device::ioRxCrcError(const Parcel& data)
+{
     lastParcelSys = data;
     if constexpr (DbgMsg)
         qDebug() << __FUNCTION__ << data.toHex();
 }
 
-void Device::ioRxText(const Parcel& data) {
+void Device::ioRxText(const Parcel& data)
+{
     lastParcelSys = data;
     if constexpr (DbgMsg)
         qDebug() << __FUNCTION__ << data.toHex() << data.data;

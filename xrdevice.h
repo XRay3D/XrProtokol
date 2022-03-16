@@ -8,15 +8,21 @@
 #include <QSemaphore>
 #include <QSerialPort>
 #include <QThread>
+#include <array>
 #include <commoninterfaces.h>
 
 namespace XrProtokol {
 
+#define ADDRESS 1
+
 enum {
     TX = 0xAA55,
     RX = 0x55AA,
+#if ADDRESS
+    MIN_LEN = 6, //ADDR
+#else
     MIN_LEN = 5,
-    MIN_LEN_ADDR = 6,
+#endif
     DbgMsg = 1,
 };
 
@@ -52,21 +58,30 @@ class Port;
 struct Parcel {
     uint16_t start {};
     uint8_t size {};
+#if ADDRESS
+    uint8_t address {};
+#endif
     uint8_t cmd {};
+
     uint8_t data[0x100 - MIN_LEN] { 0 };
 
-    Parcel()
-    {
+    Parcel() {
     }
 
-    Parcel(const QByteArray& ba)
-    {
+    Parcel(const QByteArray& ba) {
         *this = *reinterpret_cast<const Parcel*>(ba.data());
     }
 
     template <class... Ts>
+#if ADDRESS
+    Parcel(uint8_t cmd, uint8_t address, Ts... value)
+        : address(address)
+        , cmd(cmd)
+#else
     Parcel(uint8_t cmd, Ts... value)
         : cmd(cmd)
+#endif
+
     {
         constexpr uint8_t size_ { (sizeof(Ts) + ... + 0) };
         start = TX,
@@ -83,6 +98,7 @@ struct Parcel {
     T toValue() const { return *reinterpret_cast<const T*>(data); }
 };
 
+class Device;
 using CallBack = void (Device::*)(const Parcel&);
 
 #pragma pack(pop)
@@ -112,27 +128,24 @@ public:
     [[nodiscard]] static bool checkParcel(const QByteArray& data);
     [[nodiscard]] static bool checkParcel(const uint8_t* data);
 
-    bool write(const XrProtokol::Parcel& data, int timeout = 1000)
-    {
+    bool write(const Parcel& data, int timeout = 1000, int count = 1) {
         if (!isConnected())
             return false;
-        semaphore_.acquire(semaphore_.available());
         emit writeParcel(data);
-        return wait(timeout);
+        return wait(timeout, count);
     }
     template <class T>
-    bool read(const XrProtokol::Parcel& data, T& val, int timeout = 1000)
-    {
+    bool read(const Parcel& data, T& val, int timeout = 1000, int count = 1) {
         if (!isConnected())
             return false;
-        semaphore_.acquire(semaphore_.available());
         emit writeParcel(data);
-        bool ret = wait(timeout);
+        bool ret = wait(timeout, count);
         lastParcel.toValue(val);
         return ret;
     }
 
     Port* port() const;
+    Port* port();
 
 protected:
     void ioRxDefault(const Parcel& data);
@@ -143,10 +156,9 @@ protected:
     void ioRxCrcError(const Parcel& data);
     void ioRxText(const Parcel& data);
 
-    template <auto Cmd, class Derived>
-    void registerCallback(void (Derived::*Func)(const Parcel&)) requires std::is_base_of_v<Device, Derived>
-    {
-        static_assert(SysCmd::Ping != Cmd, "SysCmd::Ping");
+    template <auto Cmd, typename Derived>
+    void registerCallback(void (Derived::*Func)(const Parcel&)) requires std::is_base_of_v<Device, Derived> {
+        //        static_assert(SysCmd::Ping != Cmd, "SysCmd::Ping");
         static_assert(SysCmd::Reserve1 != Cmd, "SysCmd::Reserve1");
         static_assert(SysCmd::Reserve2 != Cmd, "SysCmd::Reserve2");
         static_assert(SysCmd::BufferOverflow != Cmd, "SysCmd::BufferOverflow");
@@ -155,7 +167,7 @@ protected:
         static_assert(SysCmd::WrongCommand != Cmd, "SysCmd::WrongCommand");
         callBacks[Cmd] = reinterpret_cast<CallBack>(Func);
     }
-    bool wait(int timeout = 1000) { return semaphore_.tryAcquire(1, timeout); }
+    bool wait(int timeout = 1000, int count = 1) { return semaphore_.tryAcquire(count, timeout); }
     QSemaphore semaphore_;
     Parcel lastParcel;
     Parcel lastParcelSys;
@@ -167,5 +179,5 @@ private:
     std::array<CallBack, 0x100> callBacks;
 };
 
-}
+} // namespace XrProtokol
 Q_DECLARE_METATYPE(XrProtokol::Parcel)
